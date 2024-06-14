@@ -1,0 +1,3 @@
+User-agent: *
+
+sitemap: https://kubeception.io/sitemap-index.xml

@@ -1,0 +1,42 @@
+---
+title: "Give, and you will receive"
+date: 2024-06-14
+slug: "/give-and-you-will-receive"
+---
+
+Blogging is one of those things that you will very often hear people in the tech community talking about but never actually doing. One of those things we aspire to but never quite get around to...like a long forgotten New Years resolution. I have been saying for years that I wanted to blog but we all only have so many hours in the day and many different obligations constantly pulling us in different directions. To work a full day and then get home to share your thoughts for strangers on the internet, just in the hopes that someone else might find it useful. I have always had tremendous respect for bloggers and open source contributors because it truly is a thankless job.
+
+---
+
+If you are not familiar with [this story about the JavaScript registry npm](https://qz.com/646467/how-one-programmer-broke-the-internet-by-deleting-a-tiny-piece-of-code), I highly recommend you give it a read. Azer Koçulu, who was a 28 year-old computer programmer at the time, had created and uploaded numerous JavaScript packages to npm. Like many developers in the open source community, he gave his labor freely because he believed in the [FOSS philosophy](https://www.gnu.org/philosophy/floss-and-foss.en.html). That the sharing of knowledge is a sacred thing that can help to build a better world.
+
+One of the packages he released was titled `kik`, which was used for creating reusable templates for software projects. Unfortunately for him, his package shared this name with a popular mobile messaging app by the same name. A lawyer working on behalf of Kik reached out to Koçulu and asked him politely to rename his package. He essentially responded by putting up his middle finger and said "no thank you." As you can imagine, the lawyer did not take this well and escalated this issue to management at npm.
+
+Isaac Schlueter, the chief executive at npm, finally agreed to transfer ownership of this disputed package over to the organization. This action (in my opinion), rightly infuriated Koçulu, who proceeded to remove **every** package he had ever published to npm. No one could have predicted what would happen next. One of those packages, the innocently titled  `left-pad`, created a tsunami of broken  websites across the internet. The package does exactly what it sounds like: adds characters a string of text to achieve the desired character length. One of the rules of software development is "don't reinvent the wheel". In other words, don't waste your time writing code when an off-the-shelf package exists which achieves the desired outcome. The package is exceptionally simple, totalling at 11 lines of straight forward JavaScript code.
+
+If you are not familiar with this xkcd comic strip, it illustrates what happened here perfectly.
+
+![Software Dependencies](./dependency.png)
+
+This event was one of many that started a serious conversation around what we call the **Software Supply Chain**: the composition of components, libraries, tools, and processes used to develop, build, and publish a software artifact. There really are critical software packages maintained by one or two dedicated engineers with no external funding. It is way more common than people realize.
+
+Obviously, Koçulu did nothing wrong as the packages were his intellectual property to do with as he pleases. But this is a complicated issue and I think you could easily wind up siding with either party, depending on your disposition. The executive thought he was making the right decision to avoid potential legal backlash for npm. Koçulu felt betrayed by the community he spent years freely contributing his labor and made a rash decision out of spite.
+
+---
+
+Developers in the modern age are incredibly blessed with a wealth of resources, many of them free, which greatly accelerate our ability to learn new skills and solve problems. Who among us has not searched for some cryptic error code when trying to run their code and found Bob on stackoverflow who shared a detailed write up of the error and how to solve it. We should all strive to be more appreciate of people who spend their evenings sharing their free labor for our benefit.
+
+In that spirit, my goal with this blog is to help inspire people to experiment and just have more fun with technology. I am now eight years into my professional career and honestly I have been slowly losing a bit of the passion I used to have in the early days, where everything was new and exciting. If I am to be successful long term, I strongly believe I need to recapture some of that spirit to help drive me to do bigger and better things.
+
+The first topic I have queued up for the blog is a comprehensive setup guide for my home Kubernetes cluster. I set this up some time ago but there were some loose ends that I had been meaning to fix up for a while, which I just completed. I had posted some of this on LinkedIn but I will be expanding on this and including code samples, to help folks who wish to follow along.
+
+I have a couple of ideas that I have been noodling as potential projects to share on this platform. Not all Kubernetes related but I will always try and sneak it in whenever a server of any kind is needed:
+
+- WPA handshake collection via autonomous drone system
+- AI assisted Text to speech (TTS) training via publicly available video/audio platforms
+
+If I do decide to tackle any of the above, they will likely be multi part and stretched out over many weeks or months due to the time commitment. I don't really have a particular content strategy yet or a schedule. The only requirement I am giving myself out of the gate is I must post something a minimum of once per month. I hope I can contribute more frequently but I am setting the bar low on purpose.
+
+I hope you enjoyed my first blog post. Let's build some stuff.
+
+> Take care, brush ya hair
