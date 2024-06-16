@@ -79,7 +79,7 @@ God forbid you wanted to deploy Kubernetes on Windows, there are distributions w
 
 Because Kubernetes is an set of processes and APIs, not a single binary, there are many different distributions or "flavors" to choose from. In the homelab space, there are really three choices you should consider when designing your cluster. I can't remember exactly why I ended up going for microk8s over any of these other options. All of the below distributions have a straightforward setup process and are specifically designed for IoT and edge computing applications, meaning they have a small installation footprint and very low resource requirements. You can even run k3s on a Raspberry Pi, if you so desire.
 
-### k3s
+## k3s
 
 **Overview:** k3s is a lightweight Kubernetes distribution designed for IoT and edge computing. It's a fully conformant Kubernetes distribution with a small memory footprint and reduced resource usage.
 
@@ -93,7 +93,7 @@ Because Kubernetes is an set of processes and APIs, not a single binary, there a
 
 **Link:** https://k3s.io/
 
-### k0s
+## k0s
 
 **Overview:** k0s is an open source, all-inclusive Kubernetes distribution, which is configured with all of the features needed to build a Kubernetes cluster. Due to its simple design, flexible deployment options and modest system requirements, k0s is well suited for public cloud, bare metal, edge and IoT.
 
@@ -107,7 +107,7 @@ Because Kubernetes is an set of processes and APIs, not a single binary, there a
 
 **Link:** https://k0sproject.io/
 
-### microk8s
+## microk8s
 
 **Overview:** MicroK8s is a single-package, lightweight Kubernetes distribution designed for local development, CI/CD pipelines, and IoT. It's easy to install and use, providing a full Kubernetes environment in a small footprint.
 
@@ -132,6 +132,8 @@ Then follow the distribution specific documentation to install and initialize yo
 Regardless of the distribution you choose, you will need to decide which systems will be "control plane" nodes and which will be "worker" nodes. In a production environment, it is always recommended to have separate nodes to act as the control plane. However, in a homelab scenario this will likely result in a lot of idle compute. A three node cluster where the nodes act as both control plane and workers is the sweet spot for most homelab scenarios. That is how my cluster is configured.
 
 At the end of this process, there should be a way to retrieve your kubeconfig file, which you will need to copy to your machine to establish a connection. After copying to your workstation, install it in the default location: `~/.kube/config`. To verify the cluster is working as expected, execute a quick `kubectl get pod` and ensure that you get a response from the cluster.
+
+---
 
 # Next Steps
 
