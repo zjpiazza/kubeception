@@ -193,7 +193,7 @@ As with our previous Helm installation, you should see a short message displayed
 
 ## Create Ceph cluster
 
-The first step here is to provision the Ceph cluster. Below is the manifest I am currently using in my installation:
+The first step here is to provision the Ceph cluster. The Rook GitHub repository has a plethora of examples, depending on your needs. If you want to experiment with other configurations or view where I sourced these from: [Rook Examples](https://github.com/rook/rook/tree/release-1.14/deploy/examples). Below is the manifest I am currently using in my installation:
 
     ```
     apiVersion: ceph.rook.io/v1
@@ -210,11 +210,9 @@ The first step here is to provision the Ceph cluster. Below is the manifest I am
         allowMultiplePerNode: false
       dashboard:
         enabled: true
-      # cluster level storage configuration and selection
       storage:
         useAllNodes: true
         useAllDevices: true
-        # Only create OSDs on devices that match the regular expression filter
         deviceFilter: nvme0n1
     ```
 
@@ -222,9 +220,9 @@ Let me quickly run through this resource and what some of these parameters mean.
 
 The `dataDirHostPath` parameter is setting the mount point for our newly provisioned volumes. This can be any path, so long as there are no conflicts with existing mount points. Try to use common Linux data directories (/var/lib, /data, /etc), if possible.
 
-The `mon` block in the specification refers to Ceph monitors, which are described as the "brains" of the cluster. They are responsible for managing metadata necessary to store and retrieve your data. Ensuring monitors are healthy is vital to a healthy cluster. As with many other distributed computing platforms, use an odd number of monitors to ensure the highest availability. This is related to the concept of [quorum](https://en.wikipedia.org/wiki/Quorum_(distributed_computing)), which is very important to understand if use any distributed computing platforms. In most cases, this should be set to one per node.
+The `mon` block in the specification refers to [Ceph monitors](https://rook.io/docs/rook/v1.14/Storage-Configuration/Advanced/ceph-mon-health/), which are described as the "brains" of the cluster. They are responsible for managing metadata necessary to store and retrieve your data. Ensuring monitors are healthy is vital to a healthy cluster. As with many other distributed computing platforms, use an odd number of monitors to ensure the highest availability. This is related to the concept of [quorum](https://en.wikipedia.org/wiki/Quorum_(distributed_computing)), which is very important to understand if working with distributed systems. In most cases, this should be set to one per node.
 
-The `storage` block is also very important here. Rook provides different ways to specify which nodes and block devices should be registered to the cluster. The simplest method is to set `storage.useAllNodes` and `storage.useAllDevices` to `true` and then use the `storage.deviceFilter` parameter to target specific block devices. Since I am using all NVME drives for my Ceph cluster, I use the device name which corresponds to the first NVME drive installed in the node. If you were using SATA drives for your cluster, you would use `storage.deviceFilter=sda`.
+The `storage` block is also very important here. Rook provides different ways to specify which nodes and block devices should be registered to the cluster. The simplest method is to set `storage.useAllNodes` and `storage.useAllDevices` to `true` and then use the `storage.deviceFilter` parameter to target specific block devices. Since I am using all NVMe drives for my Ceph cluster, I use the device name which corresponds to the first NVMe drive installed. If you were using SATA drives for your cluster, you would use `storage.deviceFilter=sda`.
 
 Ensure that you have adjusted these parameters to match your hardware configuration and create the cluster: `kubectl apply -f ceph-cluster.yaml`. There are a number of things that can go wrong here, so you need to monitor the installation carefully. Firstly, check the status of the `CephCluster` resource by issuing the command `kubectl get cephcluster`. Once the `phase` is set to `Ready`, that means that the cluster was successfully provisioned. The installation can take quite a while to complete, so I would recommend monitoring the pods created in the namespace. If there are any provisioning issues, you will likely see that by viewing pod logs.
 
