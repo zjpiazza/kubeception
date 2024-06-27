@@ -112,8 +112,18 @@ Let's do a quick experiment to demonstrate the pitfalls that come with hostPath 
 
     `k rollout restart -n todo deployment/todo`
 
-3. Because we did not provide any constraints for the Kubernetes scheduler, if you have a healthy cluster with additional nodes ready, a new pod should be created to replace our freshly deleted one. However, since only our original node hosts the data we just entered into our app, lets see what happens for our users...looks like everything is gone:
+3. Because we did not provide any constraints for the Kubernetes scheduler, if you have a healthy cluster with additional nodes ready, a new pod should be created to replace our freshly deleted one. However, since our original node is the only one that hosts the data, let's see what happens for our users...looks like everything is gone:
 ![Todo App - Without Data](./todo-app-without-data.png)
+
+## Analysis
+
+Okay, so what the heck just happened? This honestly threw me for a loop when I was doing my initial testing. I did not expect this outcome. What I expected to happen here was that once the original pod had been killed, the Kubernetes scheduler would fail to schedule a new pod because that pod was using a Persistent Volume set to hostPath. What actually happens is more insidious: Kubernetes happily schedules the new pod, without a care in the world for where the pod should reside. The data present in these hostPath directories is "out of band" as far as Kubernetes is concerned.
+
+There are plenty of legitimate use cases for hostPath storage. Here are a few pulled from the [Kubernetes documentation](https://kubernetes.io/docs/concepts/storage/volumes/#hostpath):
+- running a container that needs access to node-level system components (such as a container that transfers system logs to a central location,accessing those logs using a read-only mount of /var/log)
+- making a configuration file stored on the host system available read-only to a static pod; unlike normal Pods, static Pods cannot access ConfigMaps
+
+But for mission critical applications, we need a way to decouple pods from nodes to ensure high availability.
 
 ## Cleanup
 
@@ -121,16 +131,6 @@ Make sure you clean up after this experiment, we will delete everything except t
 - `helm -n todo uninstall todo`
 - `kubectl -n todo delete pvc/todo`
 - `kubectl -n todo delete pv/todo`
-
-## Analysis
-
-Okay, so what the heck just happened? This honestly threw me for a loop when I was doing my initial testing, and did not expect this outcome. So what I actually expected to happen here was that once the original pod has been killed, the Kubernetes scheduler would just fail to schedule a new pod because that pod was using a Persistent Volume set to hostPath storage. What actually happens is more insidious: Kubernetes happily schedules the new pod, without a care in the world for where the pod should reside. When we created our Persistent Volume, we specified the path on the host on which to mount. The data present in these directories is "out of band" as far as Kubernetes is concerned.
-
-There are plenty of legitimate use cases for hostPath storage. Here are a few pulled from the [Kubernetes documentation](https://kubernetes.io/docs/concepts/storage/volumes/#hostpath):
-- running a container that needs access to node-level system components (such as a container that transfers system logs to a central location,accessing those logs using a read-only mount of /var/log)
-- making a configuration file stored on the host system available read-only to a static pod; unlike normal Pods, static Pods cannot access ConfigMaps
-
-But for mission critical applications, we need a way to decouple pods from nodes to ensure high availability.
 
 ---
 
@@ -152,7 +152,7 @@ Rook provides several key benefits for Kubernetes environments. It enables seaml
 
 ## Prerequisites
 
-However, I want to quickly address a few points before we continue to the setup procedure. There are some hardware requirements associated with Rook and I want to ensure that you don't proceed any further if your cluster does not meet those requirements. Rook supports Kubernetes versions v1.25 through v1.30, so if you installed your cluster recently, you should be good here. The Rook operator also mandates the presence of specific Linux Kernel modules, however most modern Linux distributions should have these already.
+I want to quickly address a few points before we begin the setup procedure. There are some requirements associated with Rook and I want to ensure that you don't proceed any further if your cluster does not meet those. Rook supports Kubernetes versions v1.25 through v1.30, so if you installed your cluster recently, you should be good here. The Rook operator also mandates the presence of specific Linux Kernel modules, however most modern Linux distributions should have these already.
 
 To configure the Ceph cluster, at least one of these local storage types is required:
 - Raw devices (no partitions or formatted filesystems)
@@ -166,7 +166,7 @@ The full set of requirements can be found at the following address: [Rook Prereq
 
 ## Install Rook
 
-Now that we know what Rook and Ceph are and why they are valuable to our goal of reliable and performant storage on our cluster, lets get into installing and configuring it on our cluster. Because storage systems like Rook are so complex, the installation process will have minor variations depending on your specific Kubernetes distribution.
+Now that we know what Rook and Ceph are and why they are valuable to our goal of reliable and performant storage on our cluster, let's get into installing and configuring it on our cluster. Because storage systems like Rook are so complex, the installation process will have minor variations depending on your specific Kubernetes distribution.
 
 1. Add the Rook Helm repository
 
@@ -189,7 +189,7 @@ Now that we know what Rook and Ceph are and why they are valuable to our goal of
     `helm install --create-namespace --namespace rook-ceph rook-ceph rook-release/rook-ceph -f rook-values.yaml`
 
 
-As with our previous Helm installation, you should see a short message displayed in your console once the installation is successfully completed. Now lets use the operator to actually provision storage.
+As with our previous Helm installation, you should see a short message displayed in your console once the installation is successfully completed. Now let's use the operator to actually provision storage.
 
 ## Create Ceph cluster
 
@@ -220,11 +220,13 @@ Let me quickly run through this resource and what some of these parameters mean.
 
 The `dataDirHostPath` parameter is setting the mount point for our newly provisioned volumes. This can be any path, so long as there are no conflicts with existing mount points. Try to use common Linux data directories (/var/lib, /data, /etc), if possible.
 
-The `mon` block in the specification refers to [Ceph monitors](https://rook.io/docs/rook/v1.14/Storage-Configuration/Advanced/ceph-mon-health/), which are described as the "brains" of the cluster. They are responsible for managing metadata necessary to store and retrieve your data. Ensuring monitors are healthy is vital to a healthy cluster. As with many other distributed computing platforms, use an odd number of monitors to ensure the highest availability. This is related to the concept of [quorum](https://en.wikipedia.org/wiki/Quorum_(distributed_computing)), which is very important to understand if working with distributed systems. In most cases, this should be set to one per node.
+The `mon` block in the specification refers to [Ceph monitors](https://rook.io/docs/rook/v1.14/Storage-Configuration/Advanced/ceph-mon-health/), which are described as the "brains" of the cluster. They are responsible for managing metadata necessary to store and retrieve your data. Ensuring monitors are healthy is vital to a healthy cluster. As with other distributed systems, specify an odd number of monitors to ensure the highest availability. This is related to the concept of [quorum](https://en.wikipedia.org/wiki/Quorum_(distributed_computing)), which is very important to understand when working with distributed systems. In most cases, this should be set to one per node.
 
 The `storage` block is also very important here. Rook provides different ways to specify which nodes and block devices should be registered to the cluster. The simplest method is to set `storage.useAllNodes` and `storage.useAllDevices` to `true` and then use the `storage.deviceFilter` parameter to target specific block devices. Since I am using all NVMe drives for my Ceph cluster, I use the device name which corresponds to the first NVMe drive installed. If you were using SATA drives for your cluster, you would use `storage.deviceFilter=sda`.
 
-Ensure that you have adjusted these parameters to match your hardware configuration and create the cluster: `kubectl apply -f ceph-cluster.yaml`. There are a number of things that can go wrong here, so you need to monitor the installation carefully. Firstly, check the status of the `CephCluster` resource by issuing the command `kubectl get cephcluster`. Once the `phase` is set to `Ready`, that means that the cluster was successfully provisioned. The installation can take quite a while to complete, so I would recommend monitoring the pods created in the namespace. If there are any provisioning issues, you will likely see that by viewing pod logs.
+Ensure that you have adjusted these parameters to match your hardware configuration and create the cluster: `kubectl apply -f ceph-cluster.yaml`. 
+
+There are a number of things that can go wrong here, so you need to monitor the installation carefully. Firstly, check the status of the `CephCluster` resource by issuing the command `kubectl get cephcluster`. Once the `phase` is marked as `Ready`, that means that the cluster was successfully provisioned. The installation can take quite a while to complete, so I would recommend monitoring the pods created in the namespace. If there are any provisioning issues, you will likely see that by viewing pod logs.
 
 ## Create Ceph Block Pool
 
@@ -245,7 +247,7 @@ spec:
     requireSafeReplicaSize: true
 ```
 
-As in previous steps, once this object has been created, check the status to ensure that the provisioning is successfully using `kubectl get cephblockpool` and examining the `phase` attribute.
+As in previous steps, once this object has been created, check the status to ensure that the provisioning is successful by using `kubectl get cephblockpool` and examining the `phase` attribute.
 
 
 ## Create Storage Class
@@ -278,7 +280,7 @@ reclaimPolicy: Delete
 
 ## Todo App v2
 
-We are now going to use our shiny new Ceph cluster for provisioning Persistent Volumes for the todo application we tested with earlier. If you set the newly created Storage Class as default, the only change needed to the chart values is to remove the `persistence.Data.existingClaim` parameter. We are simply going to re-run the install command and go through the node failure simulation we completed earlier. Let's see what happens when the workload is shifted onto a new node:
+We are now going to use our shiny new Ceph cluster for provisioning Persistent Volumes for the todo application we tested with earlier. If you set the newly created Storage Class as default, the only change needed to the chart values is to remove the `persistence.data.existingClaim` parameter. We are simply going to re-run the install command and go through the node failure simulation we completed earlier. Let's see what happens when the workload is shifted onto a new node:
 
 ![Todo Ceph](./todo-ceph.png)
 
