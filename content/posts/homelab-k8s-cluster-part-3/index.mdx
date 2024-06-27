@@ -4,15 +4,15 @@ date: 2024-06-24
 slug: "/homelab-k8s-cluster-part-3"
 ---
 
-Welcome back to our homelab Kubernetes ClusterTunnel series. At this stage, we have successfully configured a cluster using refurbished or used hardware and that cluster now has a reverse proxy networking solution, using Cloudflare Tunnels. In this post, we will be installing the popular cloud-native storage solution,  Rook.
+Welcome back to our homelab Kubernetes cluster series. At this stage, we have successfully configured a cluster using refurbished or used hardware and that cluster now has a reverse proxy networking solution, using Cloudflare Tunnels. In this post, we will be installing the popular cloud-native storage solution,  Rook.
 
-To fully appreciate the advantages of clustered storage solutions like Rook, it’s important to understand Kubernetes storage primitives: Persistent Volumes (PVs), Persistent Volume Claims (PVCs), and Storage Classes.
+To fully appreciate the advantages of clustered storage solutions like Rook, it’s important to understand Kubernetes storage primitives: [Persistent Volumes](https://kubernetes.io/docs/concepts/storage/persistent-volumes/) (PVs), [Persistent Volume Claims](https://kubernetes.io/docs/concepts/storage/persistent-volumes/#persistentvolumeclaims) (PVCs), and [Storage Classes](https://kubernetes.io/docs/concepts/storage/storage-classes/).
 
-Persistent Volumes (PVs) are storage resources provisioned in a Kubernetes cluster. These volumes exist independently of any specific pod, allowing them to persist beyond the lifecycle of individual pods. PVs can be backed by various storage types, such as local disks, network-attached storage, or cloud storage services.
+Persistent Volumes are storage resources provisioned in a Kubernetes cluster. These volumes exist independently of any specific pod, allowing them to persist beyond the lifecycle of individual pods. PVs can be backed by various storage types, such as local disks, network-attached storage, or cloud storage services.
 
-Persistent Volume Claims (PVCs) are requests for storage by users. A PVC specifies the desired storage capacity and access mode (e.g., read-write or read-only). When a PVC is created, Kubernetes matches it with a suitable PV based on the specified requirements. If a matching PV is found, it binds the PVC to the PV, making the storage available to the requesting pod. This abstraction allows users to request storage without needing to know the specifics of the underlying storage infrastructure.
+Persistent Volume Claims are requests for storage by application developers. A PVC specifies the desired storage capacity and access mode (e.g., read-write or read-only). When a PVC is created, Kubernetes matches it with a suitable PV based on the specified requirements. If a matching PV is found, it binds the PVC to the PV, making the storage available to the requesting pod. This abstraction allows users to request storage without needing to know the specifics of the underlying storage infrastructure.
 
-Storage Classes provide a way to describe different types of storage available in a cluster. A Storage Class can define parameters such as the type of storage (e.g., SSD, HDD), replication factors, and other policies related to performance and availability. Administrators can create multiple Storage Classes to offer different levels of service. When users create PVCs, they can specify a Storage Class to ensure their storage meets specific performance and durability requirements. Additionally, Storage Classes enable dynamic provisioning, allowing Kubernetes to automatically create and configure PVs as needed, streamlining the storage management process.
+Storage Classes provide a way to describe different types of storage available in a cluster. A Storage Class can define parameters such as the type of storage (e.g., SSD, HDD), replication factors, and other policies related to performance and availability. Administrators can create multiple Storage Classes to offer different levels of service. When application developers create PVCs, they can specify a Storage Class to ensure their storage meets specific performance and durability requirements. Additionally, Storage Classes enable dynamic provisioning, allowing Kubernetes to automatically create and configure PVs as needed, streamlining the storage management process.
 
 If you issue the following command in your cluster, you should see that there are zero entries listed:
 `kubectl get storageclass`. Because there are no storage classes installed in your cluster at this time, we are limited to using the `hostPath` volume type.
@@ -21,7 +21,7 @@ If you issue the following command in your cluster, you should see that there ar
 
 # Just say no...to hostPath storage
 
-Lets do a quick experiment to see the pitfalls that come with hostPath volumes. We are going to deploy a sample "todo" application, using the Helm chart published at the following address: [todo - Artifact Hub](https://artifacthub.io/packages/helm/nicholaswilde/todo). The application is pretty straightforward: a web interface to input a list of To-Dos.
+Let's do a quick experiment to demonstrate the pitfalls that come with hostPath volumes. We are going to deploy a sample "todo" application, using the Helm chart published at the following address: [todo - Artifact Hub](https://artifacthub.io/packages/helm/nicholaswilde/todo). The application is pretty straightforward: a web interface to input a list of To-Dos.
 
 ## Setup
 
@@ -38,7 +38,7 @@ Lets do a quick experiment to see the pitfalls that come with hostPath volumes. 
     - Set `persistence.data.enabled=true`
     - Set `persistence.data.existingClaim=todo`
 
-4. Before we can install our todo application, we will provision the Persistent Volume and Persistent Volume Claim ahead of time. Use `kubectl apply` to create the required objects:
+4. Before we can install our todo application, we will create the Persistent Volume and Persistent Volume Claim ahead of time. Use `kubectl apply` to create the required objects:
 
     ```
     apiVersion: v1
@@ -74,7 +74,7 @@ Lets do a quick experiment to see the pitfalls that come with hostPath volumes. 
           storage: 1Gi
     ```
 
-5. Now that we have created our namespace volumes, let us deploy the application using the following command:
+5. Now that we have created the dependencies, let us deploy the application using the following command:
 
     `helm install -n todo nicholaswilde/todo todo -f todo-values.yaml`
 
@@ -99,6 +99,7 @@ Lets do a quick experiment to see the pitfalls that come with hostPath volumes. 
 ## Simulate node failure
 
 1. We first must identify which node our application is currently running. You can quickly retrieve that using:
+
     ```
     kubectl -n todo get pods -o custom-columns="POD:metadata.name,NODE:spec.nodeName"
     ```
@@ -111,7 +112,7 @@ Lets do a quick experiment to see the pitfalls that come with hostPath volumes. 
 
     `k rollout restart -n todo deployment/todo`
 
-3. Because we did not provide any constraints for the Kubernetes scheduler, if you have a healthy cluster with additional nodes ready, Kubernetes will immediately spring into action and  create a new  pod to replace our freshly deleted one. However, since only our original node hosts the data we just entered into our app, lets see what happens for our users...looks like everything is gone:
+3. Because we did not provide any constraints for the Kubernetes scheduler, if you have a healthy cluster with additional nodes ready, a new pod should be created to replace our freshly deleted one. However, since only our original node hosts the data we just entered into our app, lets see what happens for our users...looks like everything is gone:
 ![Todo App - Without Data](./todo-app-without-data.png)
 
 ## Cleanup
@@ -123,7 +124,7 @@ Make sure you clean up after this experiment, we will delete everything except t
 
 ## Analysis
 
-Okay, so what the heck just happened? Well if you're as confused as I was when I started writing this, you're not alone. So what I actually expected to happen here was that once the original pod has been killed, the Kubernetes scheduler would just fail to schedule a new pod because that pod was using a Persistent Volume set to hostPath storage. What actually happens is more insidious: Kubernetes happily schedules the new pod, without a care in the world for where the pod should reside. When we created our Persistent Volume, we specified the path on the host on which to mount. The data present in these directories is "out of band" as far as Kubernetes is concerned.
+Okay, so what the heck just happened? This honestly threw me for a loop when I was doing my initial testing, and did not expect this outcome. So what I actually expected to happen here was that once the original pod has been killed, the Kubernetes scheduler would just fail to schedule a new pod because that pod was using a Persistent Volume set to hostPath storage. What actually happens is more insidious: Kubernetes happily schedules the new pod, without a care in the world for where the pod should reside. When we created our Persistent Volume, we specified the path on the host on which to mount. The data present in these directories is "out of band" as far as Kubernetes is concerned.
 
 There are plenty of legitimate use cases for hostPath storage. Here are a few pulled from the [Kubernetes documentation](https://kubernetes.io/docs/concepts/storage/volumes/#hostpath):
 - running a container that needs access to node-level system components (such as a container that transfers system logs to a central location,accessing those logs using a read-only mount of /var/log)
@@ -135,7 +136,7 @@ But for mission critical applications, we need a way to decouple pods from nodes
 
 # What is Rook?
 
-Rook is an open-source cloud-native storage orchestrator for Kubernetes, designed to manage and automate the deployment, configuration, scaling, and maintenance of storage systems. By abstracting the complexity of storage management, Rook enables users to leverage powerful distributed storage systems like Ceph, Cassandra, NFS, and more, as self-managing, self-scaling, and self-healing storage services. Rook integrates seamlessly with Kubernetes, allowing storage resources to be provisioned dynamically and managed alongside application workloads, simplifying the overall infrastructure and operational workflow.
+[Rook](https://rook.io/) is an open-source cloud-native storage orchestrator for Kubernetes, designed to manage and automate the deployment, configuration, scaling, and maintenance of storage systems. By abstracting the complexity of storage management, Rook enables users to leverage powerful distributed storage systems like Ceph, Cassandra, NFS, and more, as self-managing, self-scaling, and self-healing storage services. Rook integrates seamlessly with Kubernetes, allowing storage resources to be provisioned dynamically and managed alongside application workloads, simplifying the overall infrastructure and operational workflow.
 
 ![Rook Architecture](./rook-architecture.png)
 
@@ -143,7 +144,7 @@ Rook provides several key benefits for Kubernetes environments. It enables seaml
 
 # What is Ceph?
 
-Ceph is a highly scalable, software-defined storage system that unifies object, block, and file storage, making it ideal for enterprises, academic institutions, and beyond. Leveraging the advanced [CRUSH algorithm](https://docs.ceph.com/en/latest/rados/operations/crush-map/), Ceph ensures rapid scaling without downtime and mitigates single points of failure and performance bottlenecks. Its self-managing and self-healing capabilities offer unparalleled reliability and data integrity, automatically rectifying issues before they become apparent. Ceph's flexibility allows it to be tailored to existing setups or deployed on commodity hardware, providing a cost-effective alternative to traditional, proprietary storage solutions. This makes Ceph an excellent choice for handling rapid and unpredictable data growth, enhancing performance, and supporting diverse storage needs, all while simplifying infrastructure and driving innovations in AI and ML.
+[Ceph](https://ceph.io/) is a highly scalable, software-defined storage system that unifies object, block, and file storage, making it ideal for enterprises, academic institutions, and beyond. Leveraging the advanced [CRUSH algorithm](https://docs.ceph.com/en/latest/rados/operations/crush-map/), Ceph ensures rapid scaling without downtime and mitigates single points of failure and performance bottlenecks. Its self-managing and self-healing capabilities offer unparalleled reliability and data integrity, automatically rectifying issues before they become apparent. Ceph's flexibility allows it to be tailored to existing setups or deployed on commodity hardware, providing a cost-effective alternative to traditional, proprietary storage solutions. This makes Ceph an excellent choice for handling rapid and unpredictable data growth, enhancing performance, and supporting diverse storage needs, all while simplifying infrastructure and driving innovations in AI and ML.
 
 ---
 
@@ -166,12 +167,6 @@ The full set of requirements can be found at the following address: [Rook Prereq
 ## Install Rook
 
 Now that we know what Rook and Ceph are and why they are valuable to our goal of reliable and performant storage on our cluster, lets get into installing and configuring it on our cluster. Because storage systems like Rook are so complex, the installation process will have minor variations depending on your specific Kubernetes distribution.
-
-Before we do anything, we must first install the Kubernetes operator for Rook. As with most operator installations, you have two options here:
-- Install via standard YAML manifests
-- Install via Helm
-
-I always prefer installation from Helm because invariably you are going to want to upgrade the operator down the line, so using Helm charts just makes this process so much simpler.
 
 1. Add the Rook Helm repository
 
@@ -227,7 +222,7 @@ Let me quickly run through this resource and what some of these parameters mean.
 
 The `dataDirHostPath` parameter is setting the mount point for our newly provisioned volumes. This can be any path, so long as there are no conflicts with existing mount points. Try to use common Linux data directories (/var/lib, /data, /etc), if possible.
 
-The `mon` block in the specification refers to Ceph Object Storage Daemons (OSDs). Ceph OSDs are the fundamental components of a Ceph storage cluster, responsible for storing data, handling data replication, recovery, backfilling, and rebalancing within the cluster. Each OSD runs on a storage device and communicates with other OSDs to ensure data redundancy and availability. By distributing data across multiple OSDs using the CRUSH algorithm, Ceph achieves fault tolerance and scalability, enabling the storage cluster to grow and manage large volumes of data efficiently. There are many reasons why you might want multiple OSDs per node in a cluster, but in our cases, that would be unnecessary. So we use a simple topology with three nodes and one OSD per node.
+The `mon` block in the specification refers to Ceph monitors, which are described as the "brains" of the cluster. They are responsible for managing metadata necessary to store and retrieve your data. Ensuring monitors are healthy is vital to a healthy cluster. As with many other distributed computing platforms, use an odd number of monitors to ensure the highest availability. This is related to the concept of [quorum](https://en.wikipedia.org/wiki/Quorum_(distributed_computing)), which is very important to understand if use any distributed computing platforms. In most cases, this should be set to one per node.
 
 The `storage` block is also very important here. Rook provides different ways to specify which nodes and block devices should be registered to the cluster. The simplest method is to set `storage.useAllNodes` and `storage.useAllDevices` to `true` and then use the `storage.deviceFilter` parameter to target specific block devices. Since I am using all NVME drives for my Ceph cluster, I use the device name which corresponds to the first NVME drive installed in the node. If you were using SATA drives for your cluster, you would use `storage.deviceFilter=sda`.
 
@@ -235,7 +230,7 @@ Ensure that you have adjusted these parameters to match your hardware configurat
 
 ## Create Ceph Block Pool
 
-A Ceph block pool is a logical grouping of storage within a Ceph cluster, used to manage block storage efficiently. It allows for customized data replication, erasure coding, and CRUSH rules for optimized data distribution and fault tolerance. Block pools can be configured with performance settings and quotas to control resource usage. They are essential for providing block storage to applications like virtual machines and databases.
+A Ceph block pool is a logical grouping of storage within a Ceph cluster, used to manage block storage efficiently. It allows for customized data replication, erasure coding, and CRUSH rules for optimized data distribution and fault tolerance. Block pools can be configured with performance settings and quotas to control resource usage.
 
 Our configuration will be pretty basic:
 
@@ -257,7 +252,7 @@ As in previous steps, once this object has been created, check the status to ens
 
 ## Create Storage Class
 
-We are now ready to create our Storage Class and actually start using the platform. Although not required, I would recommend setting the `is-default-class` annotation to `true` here, so that you don't need to explicitly provide a Storage Class name in your applications.
+We are now ready to create our Storage Class and actually start using the cluster. Although not required, I would recommend setting the annotation to make this Storage Class the default.
 
 ```
 apiVersion: storage.k8s.io/v1
@@ -283,15 +278,13 @@ allowVolumeExpansion: true
 reclaimPolicy: Delete
 ```
 
-Give yourself a round of applause: you have successfully configured a Ceph cluster using Rook in your cluster.
-
 ## Todo App v2
 
-We are now going to use our shiny new Ceph cluster for provisioning Persistent Volumes for the todo application we tested with earlier. If you set the newly created Storage Class as default, the only change needed to the chart values is to remove the `persistence.Data.existingClaim` parameter. We are simplfy going to re-run the install command and go through the node failure simulation we completed earlier. Let's see what happens when the workload is shifted onto new nodes:
+We are now going to use our shiny new Ceph cluster for provisioning Persistent Volumes for the todo application we tested with earlier. If you set the newly created Storage Class as default, the only change needed to the chart values is to remove the `persistence.Data.existingClaim` parameter. We are simply going to re-run the install command and go through the node failure simulation we completed earlier. Let's see what happens when the workload is shifted onto a new node:
 
 ![Todo Ceph](./todo-ceph.png)
 
-Zero data loss! Woo. Now that Ceph is handling our data replication needs, we no longer need to worry about nodes going offline and losing access to our data.
+Zero data loss! Woo. Now that Ceph is handling our data replication needs, we no longer need to worry about nodes going offline and losing access to our data. If you are finished experimenting with the todo application, make sure to uninstall the Helm release in the same manner as before. This will also delete the associated PV and PVC, as they were created by the chart.
 
 ---
 
@@ -299,6 +292,6 @@ Zero data loss! Woo. Now that Ceph is handling our data replication needs, we no
 
 We have successfully dealt with two of the biggest factors when it comes to cluster administration: networking and storage. 
 
-In the enterprise world, the integrity and availability of data is arguably the most important factor when it comes to your I.T. infrastructure. Many large companies and government instituions are using Rook to manage Ceph clusters on a massive scale. In fact, [Ceph is currently being used by CERN for a 65 petabye storage cluster](https://ceph.com/community/new-luminous-scalability/). If one of the largest research instituions in the world trusts this storage solution, I'm pretty sure it can candle my puny 3 terrabyte cluster with ease.
+In the enterprise world, the integrity and availability of data is arguably the most important factor when it comes to your I.T. infrastructure. Many large companies and government institutions are using Ceph clusters at massive scale. In fact, [Ceph is currently being used by CERN for a 65 petabyte storage cluster](https://ceph.com/community/new-luminous-scalability/). If one of the largest research institutions in the world trusts this storage solution, I'm pretty sure it can candle my puny 3 terabyte cluster with ease.
 
 We have not discussed monitoring and alerting yet, because I am saving those topics for a later installation in this series. But if you want to get into the weeds, head over to the [Rook documentation](https://rook.io/docs/rook/latest-release/Getting-Started/intro/). You can easily get lost down there for hours, if you're an uber nerd like me.
